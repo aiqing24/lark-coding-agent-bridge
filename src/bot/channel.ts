@@ -132,6 +132,24 @@ function isSuppressedSdkMessage(msg: unknown): boolean {
   );
 }
 
+// TOKEN-001 measure 7 (exported for tests): decide whether this run emits
+// the session-round advisory. First fire lands on the round right after the
+// threshold (threshold + 1), then every `every` rounds. The
+// `runCount > threshold` guard must stay: JS %-0 === 0 would otherwise make
+// the modulo fire rounds below the threshold.
+export function shouldAlertRound(
+  runCount: number,
+  threshold: number,
+  every: number,
+): boolean {
+  return (
+    threshold > 0 &&
+    runCount > threshold &&
+    (runCount - threshold - 1) % every === 0
+  );
+}
+
+
 export function shouldSuppressSdkErrorLog(args: unknown[]): boolean {
   return args.some(isSuppressedSdkMessage);
 }
@@ -966,11 +984,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   const roundAlert = getSessionRoundAlert(controls.cfg);
   const runCount = sessions.incrementRunCount(scope);
   const advisoryNotes: string[] = [];
-  if (
-    roundAlert.threshold > 0 &&
-    runCount > roundAlert.threshold &&
-    (runCount - roundAlert.threshold - 1) % roundAlert.every === 0
-  ) {
+  if (shouldAlertRound(runCount, roundAlert.threshold, roundAlert.every)) {
     advisoryNotes.push(
       `本会话已执行 ${runCount} 轮，成本随轮数平方增长。` +
         '若无未决请示，请收尾本工单（结单或交回），下一拍另起新会话。',

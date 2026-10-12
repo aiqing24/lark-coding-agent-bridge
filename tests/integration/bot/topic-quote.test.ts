@@ -347,6 +347,57 @@ describe('topic message quote handling', () => {
     expect(h.sessions.getTopicAnchor('oc_topic_chat:omt_existing', 'omt_existing')).toBe('om_new');
   });
 
+  it('falls back to the recent window and re-anchors when the persisted anchor is not in the fetched topic (TOKEN-001)', async () => {
+    // The anchor points at a message older than the fetched window (topic
+    // grew far past it). The bridge must not blind the agent: it falls back
+    // to injecting the most recent messages and re-anchors to the newest, so
+    // the next run is incremental again.
+    const h = await createHarness({
+      chatMode: 'topic',
+      threadMessages: [
+        {
+          message_id: 'om_m1',
+          msg_type: 'text',
+          body: { content: JSON.stringify({ text: 'message one' }) },
+          sender: { id: 'ou_asker', sender_type: 'user' },
+          create_time: '1760000000000',
+          thread_id: 'omt_existing',
+        },
+        {
+          message_id: 'om_m2',
+          msg_type: 'text',
+          body: { content: JSON.stringify({ text: 'message two' }) },
+          sender: { id: 'ou_asker', sender_type: 'user' },
+          create_time: '1760000001000',
+          thread_id: 'omt_existing',
+        },
+      ],
+    });
+    h.sessions.set('oc_topic_chat:omt_existing', 'sess_existing', await realpath(h.tmp.workspace));
+    // Stale anchor: a message id that is not in the topic anymore.
+    h.sessions.setTopicAnchor('oc_topic_chat:omt_existing', 'omt_existing', 'om_gone_long_ago');
+
+    await startTestBridge(h);
+
+    await h.channel.handlers.message?.(
+      message({
+        messageId: 'om_followup',
+        rootId: 'om_m1',
+        parentId: 'om_m1',
+        threadId: 'omt_existing',
+        content: '@Bridge 接着说',
+      }),
+    );
+    await waitFor(() => h.agent.runOptions.length === 1);
+
+    const prompt = h.agent.runOptions[0]?.prompt ?? '';
+    expect(prompt).toContain('<topic_context>');
+    // Fallback injected the recent window rather than nothing.
+    expect(prompt).toContain('message two');
+    // Re-anchored to the newest message so the next run is incremental.
+    expect(h.sessions.getTopicAnchor('oc_topic_chat:omt_existing', 'omt_existing')).toBe('om_m2');
+  });
+
   it('does not open a progress stream when the agent produces no content', async () => {
     // The SDK starts a stream eagerly and finishes an empty one with its
     // "(no content)" placeholder, so a content-less run used to post a card and

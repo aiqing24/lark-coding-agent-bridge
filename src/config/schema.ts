@@ -116,7 +116,8 @@ export interface AppPreferences {
   /**
    * TOKEN-001: char cap on incremental topic_context injection. When the new
    * messages exceed it, older ones are folded into a pointer marker. Default
-   * 8000.
+   * 8000. Values below 500 are treated as unset (silently fall back to the
+   * default) to guard against typo-level configs effectively hiding context.
    */
   topicContextMaxChars?: number;
   /**

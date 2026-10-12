@@ -913,6 +913,10 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
             break;
           }
         }
+        // Never fold away everything: at least the newest message stays,
+        // so the agent always sees the latest beat (degenerate configs like
+        // topicContextMaxMessages: 1 would otherwise inject only the marker).
+        cutIdx = Math.min(cutIdx, kept.length - 1);
         foldedCount = cutIdx;
         kept = kept.slice(cutIdx);
       }

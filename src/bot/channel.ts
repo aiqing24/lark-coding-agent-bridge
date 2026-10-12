@@ -969,7 +969,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   if (
     roundAlert.threshold > 0 &&
     runCount > roundAlert.threshold &&
-    (runCount - roundAlert.threshold) % roundAlert.every === 0
+    (runCount - roundAlert.threshold - 1) % roundAlert.every === 0
   ) {
     advisoryNotes.push(
       `本会话已执行 ${runCount} 轮，成本随轮数平方增长。` +
